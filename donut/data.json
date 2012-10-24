@@ -1,0 +1,11 @@
+{
+"current" : [
+	{ "name" : "Windows", "count": 6},
+	{ "name" : "OS_X" , "count": 5}
+],
+"preferred" : [
+	{ "name" : "Windows" , "count": 5},
+	{ "name" : "OS_X" , "count": 3},
+	{ "name" : "Linux" , "count": 3}
+]
+}

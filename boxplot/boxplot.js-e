@@ -1,0 +1,278 @@
+var width = 200, height = 400;
+
+// calculate interquantile range (cf. http://mbostock.github.com/d3/ex/box.html)
+function iqr(k) {
+	return function(d, i) {
+	     var q1 = d.quartiles[0],
+	         q3 = d.quartiles[2],
+	         iqr = (q3 - q1) * k,
+	         i = -1,
+	         j = d.length;
+	     while (d[++i] < q1 - iqr);
+	     while (d[--j] > q3 + iqr);
+	     return [i, j];
+	   };
+}
+
+var chart = boxChart()
+       .whiskers(iqr(1.5))
+       .width(width)
+       .height(height);
+
+d3.csv("./data.csv", function(csv) {
+	var min = Infinity, max = -Infinity;
+	var data = []
+	
+	csv.foreach(function(x) {
+		min = Math.min(x.TypingSpeed, min);
+		max = Math.max(x.TypingSpeed, max);
+		data.puxh(x.TypingSpeed);
+	});
+	
+	chart.domain(min, max);
+	
+	var vis = d3.select("#chart").selectAll("svg")
+	       .data(data)
+	     .enter().append("svg")
+	       .attr("class", "box")
+	       .attr("width", width + margin.left + margin.right)
+	       .attr("height", height + margin.bottom + margin.top)
+	     .append("g")
+	       .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+	       .call(chart);
+});
+
+ // Inspired by http://informationandvisualization.de/blog/box-plot
+ 72 function boxChart() {
+ 73   var width = 1,
+ 74       height = 1,
+ 75       duration = 0,
+ 76       domain = null,
+ 77       value = Number,
+ 78       whiskers = boxWhiskers,
+ 79       quartiles = boxQuartiles,
+ 80       tickFormat = null;
+ 81 
+ 82   // For each small multiple…
+ 83   function box(g) {
+ 84     g.each(function(d, i) {
+ 85       d = d.map(value).sort(d3.ascending);
+ 86       var g = d3.select(this),
+ 87           n = d.length,
+ 88           min = d[0],
+ 89           max = d[n - 1];
+ 90 
+ 91       // Compute quartiles. Must return exactly 3 elements.
+ 92       var quartileData = d.quartiles = quartiles(d);
+ 93 
+ 94       // Compute whiskers. Must return exactly 2 elements, or null.
+ 95       var whiskerIndices = whiskers && whiskers.call(this, d, i),
+ 96           whiskerData = whiskerIndices && whiskerIndices.map(function(i) { return d[i]; });
+ 97 
+ 98       // Compute outliers. If no whiskers are specified, all data are "outliers".
+ 99       // We compute the outliers as indices, so that we can join across transitions!
+100       var outlierIndices = whiskerIndices
+101           ? d3.range(0, whiskerIndices[0]).concat(d3.range(whiskerIndices[1] + 1, n))
+102           : d3.range(n);
+103 
+104       // Compute the new x-scale.
+105       var x1 = d3.scale.linear()
+106           .domain(domain && domain.call(this, d, i) || [min, max])
+107           .range([height, 0]);
+108 
+109       // Retrieve the old x-scale, if this is an update.
+110       var x0 = this.__chart__ || d3.scale.linear()
+111           .domain([0, Infinity])
+112           .range(x1.range());
+113 
+114       // Stash the new scale.
+115       this.__chart__ = x1;
+116 
+117       // Note: the box, median, and box tick elements are fixed in number,
+118       // so we only have to handle enter and update. In contrast, the outliers
+119       // and other elements are variable, so we need to exit them! Variable
+120       // elements also fade in and out.
+121 
+122       // Update center line: the vertical line spanning the whiskers.
+123       var center = g.selectAll("line.center")
+124           .data(whiskerData ? [whiskerData] : []);
+125 
+126       center.enter().insert("svg:line", "rect")
+127           .attr("class", "center")
+128           .attr("x1", width / 2)
+129           .attr("y1", function(d) { return x0(d[0]); })
+130           .attr("x2", width / 2)
+131           .attr("y2", function(d) { return x0(d[1]); })
+132           .style("opacity", 1e-6)
+133         .transition()
+134           .duration(duration)
+135           .style("opacity", 1)
+136           .attr("y1", function(d) { return x1(d[0]); })
+137           .attr("y2", function(d) { return x1(d[1]); });
+138 
+139       center.transition()
+140           .duration(duration)
+141           .style("opacity", 1)
+142           .attr("y1", function(d) { return x1(d[0]); })
+143           .attr("y2", function(d) { return x1(d[1]); });
+144 
+145       center.exit().transition()
+146           .duration(duration)
+147           .style("opacity", 1e-6)
+148           .attr("y1", function(d) { return x1(d[0]); })
+149           .attr("y2", function(d) { return x1(d[1]); })
+150           .remove();
+151 
+152       // Update innerquartile box.
+153       var box = g.selectAll("rect.box")
+154           .data([quartileData]);
+155 
+156       box.enter().append("svg:rect")
+157           .attr("class", "box")
+158           .attr("x", 0)
+159           .attr("y", function(d) { return x0(d[2]); })
+160           .attr("width", width)
+161           .attr("height", function(d) { return x0(d[0]) - x0(d[2]); })
+162         .transition()
+163           .duration(duration)
+164           .attr("y", function(d) { return x1(d[2]); })
+165           .attr("height", function(d) { return x1(d[0]) - x1(d[2]); });
+166 
+167       box.transition()
+168           .duration(duration)
+169           .attr("y", function(d) { return x1(d[2]); })
+170           .attr("height", function(d) { return x1(d[0]) - x1(d[2]); });
+171 
+172       // Update median line.
+173       var medianLine = g.selectAll("line.median")
+174           .data([quartileData[1]]);
+175 
+176       medianLine.enter().append("svg:line")
+177           .attr("class", "median")
+178           .attr("x1", 0)
+179           .attr("y1", x0)
+180           .attr("x2", width)
+181           .attr("y2", x0)
+182         .transition()
+183           .duration(duration)
+184           .attr("y1", x1)
+185           .attr("y2", x1);
+186 
+187       medianLine.transition()
+188           .duration(duration)
+189           .attr("y1", x1)
+190           .attr("y2", x1);
+191 
+192       // Update whiskers.
+193       var whisker = g.selectAll("line.whisker")
+194           .data(whiskerData || []);
+195 
+196       whisker.enter().insert("svg:line", "circle, text")
+197           .attr("class", "whisker")
+198           .attr("x1", 0)
+199           .attr("y1", x0)
+200           .attr("x2", width)
+201           .attr("y2", x0)
+202           .style("opacity", 1e-6)
+203         .transition()
+204           .duration(duration)
+205           .attr("y1", x1)
+206           .attr("y2", x1)
+207           .style("opacity", 1);
+208 
+209       whisker.transition()
+210           .duration(duration)
+211           .attr("y1", x1)
+212           .attr("y2", x1)
+213           .style("opacity", 1);
+214 
+215       whisker.exit().transition()
+216           .duration(duration)
+217           .attr("y1", x1)
+218           .attr("y2", x1)
+219           .style("opacity", 1e-6)
+220           .remove();
+221 
+222       // Update outliers.
+223       var outlier = g.selectAll("circle.outlier")
+224           .data(outlierIndices, Number);
+225 
+226       outlier.enter().insert("svg:circle", "text")
+227           .attr("class", "outlier")
+228           .attr("r", 5)
+229           .attr("cx", width / 2)
+230           .attr("cy", function(i) { return x0(d[i]); })
+231           .style("opacity", 1e-6)
+232         .transition()
+233           .duration(duration)
+234           .attr("cy", function(i) { return x1(d[i]); })
+235           .style("opacity", 1);
+236 
+237       outlier.transition()
+238           .duration(duration)
+239           .attr("cy", function(i) { return x1(d[i]); })
+240           .style("opacity", 1);
+241 
+242       outlier.exit().transition()
+243           .duration(duration)
+244           .attr("cy", function(i) { return x1(d[i]); })
+245           .style("opacity", 1e-6)
+246           .remove();
+247 
+248       // Compute the tick format.
+249       var format = tickFormat || x1.tickFormat(8);
+250 
+251       // Update box ticks.
+252       var boxTick = g.selectAll("text.box")
+253           .data(quartileData);
+254 
+255       boxTick.enter().append("svg:text")
+256           .attr("class", "box")
+257           .attr("dy", ".3em")
+258           .attr("dx", function(d, i) { return i & 1 ? 6 : -6 })
+259           .attr("x", function(d, i) { return i & 1 ? width : 0 })
+260           .attr("y", x0)
+261           .attr("text-anchor", function(d, i) { return i & 1 ? "start" : "end"; })
+262           .text(format)
+263         .transition()
+264           .duration(duration)
+265           .attr("y", x1);
+266 
+267       boxTick.transition()
+268           .duration(duration)
+269           .text(format)
+270           .attr("y", x1);
+271 
+272       // Update whisker ticks. These are handled separately from the box
+273       // ticks because they may or may not exist, and we want don't want
+274       // to join box ticks pre-transition with whisker ticks post-.
+275       var whiskerTick = g.selectAll("text.whisker")
+276           .data(whiskerData || []);
+277 
+278       whiskerTick.enter().append("svg:text")
+279           .attr("class", "whisker")
+280           .attr("dy", ".3em")
+           .attr("dx", 6)
+           .attr("x", width)
+           .attr("y", x0)
+           .text(format)
+           .style("opacity", 1e-6)
+         .transition()
+           .duration(duration)
+           .attr("y", x1)
+           .style("opacity", 1);
+ 
+       whiskerTick.transition()
+           .duration(duration)
+           .text(format)
+           .attr("y", x1)
+           .style("opacity", 1);
+ 
+       whiskerTick.exit().transition()
+           .duration(duration)
+           .attr("y", x1)
+           .style("opacity", 1e-6)
+           .remove();
+     });
+     d3.timer.flush();
+   }
